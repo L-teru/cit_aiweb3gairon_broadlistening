@@ -1,0 +1,15 @@
+bertopic
+google-auth
+gspread
+gspread-dataframe
+hdbscan
+matplotlib
+nltk
+numpy
+pandas
+plotly
+requests
+sentence-transformers
+scikit-learn
+streamlit
+umap-learn
