@@ -268,7 +268,8 @@ with tab_list:
                 from sentence_transformers import SentenceTransformer
 
                 # モデル読み込み
-                model = SentenceTransformer("cl-nagoya/sup-simcse-ja-large")
+                # model = SentenceTransformer("cl-nagoya/sup-simcse-ja-large") # MecabがなくてError
+                model = SentenceTransformer("intfloat/multilingual-e5-small") # Mecab不要
 
                 # 入力文をベクトル化
                 input_vec = model.encode([input_text])
