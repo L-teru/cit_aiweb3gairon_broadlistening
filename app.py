@@ -227,7 +227,7 @@ with tab_analysis:
 
 # --- 一覧タブ ---
 with tab_list:
-    st.header("📑 クラスタ別アイデア一覧")
+    st.header("📑 クラスタ別バグリスト一覧")
 
     # 🔥 クラスタID or ラベルでフィルタできるようにする
     cluster_options = df_ideas["cluster-id"].unique()
@@ -249,9 +249,105 @@ with tab_list:
         use_container_width=True,
         column_config={
             "label": st.column_config.TextColumn(width="large"),    # ラベル列を広げる
-            "argument": st.column_config.TextColumn(width="large"), # アイデア列を広げる
+            "argument": st.column_config.TextColumn(width="large"), # バグリスト列を広げる
         }
     )
+
+    st.markdown("---")
+    st.subheader("🔍 類似バグリスト検索＆LLM回答")
+
+    input_text = st.text_input("💬 あなたのバグリストを入力してください")
+    top_k = st.slider("🔢 何件まで候補を出すか？", min_value=3, max_value=20, value=5)
+
+    if st.button("🚀 類似バグリストを検索"):
+        if input_text.strip() == "":
+            st.warning("⚠️ 入力してください。")
+        else:
+            with st.spinner("🔍 類似バグリストを検索中..."):
+                from sklearn.metrics.pairwise import cosine_similarity
+                from sentence_transformers import SentenceTransformer
+
+                # モデル読み込み
+                model = SentenceTransformer("cl-nagoya/sup-simcse-ja-large")
+
+                # 入力文をベクトル化
+                input_vec = model.encode([input_text])
+
+                # 既存ベクトル読み込み
+                df_embed = pd.read_pickle(os.path.join(WORKING_DIR, "embeddings.pkl"))
+                embeddings = np.vstack(df_embed["embedding"].values)
+
+                # コサイン類似度計算
+                similarities = cosine_similarity(input_vec, embeddings)[0]
+
+                # 類似度Top Kを取得
+                top_indices = similarities.argsort()[-top_k:][::-1]
+
+                similar_args = df_args.iloc[top_indices].copy()
+                similar_args["similarity"] = similarities[top_indices]
+
+                # クラスタ情報をマージ
+                similar_args = similar_args.merge(
+                    df_clusters[["arg-id", "cluster-id", "label"]],
+                    on="arg-id",
+                    how="left"
+                )
+
+                # 表示用整形
+                df_show = similar_args[["similarity", "cluster-id", "label", "argument"]]
+                df_show = df_show.rename(columns={"similarity": "類似度", "cluster-id": "クラスタID", "label": "クラスタラベル", "argument": "バグリスト"})
+                df_show = df_show.sort_values(by="類似度", ascending=False)
+
+                st.success(f"✅ 類似度トップ{top_k}件を表示します。")
+                st.dataframe(
+                    df_show.style.set_properties(**{
+                        'text-align': 'left',
+                        'white-space': 'pre-wrap',
+                    }),
+                    hide_index=True,
+                    use_container_width=True,
+                    column_config={
+                        "クラスタラベル": st.column_config.TextColumn(width="large"),
+                        "バグリスト": st.column_config.TextColumn(width="large"),
+                    }
+                )
+
+            if st.button("🤖 LLMに最も似たバグリストを選ばせる"):
+                with st.spinner("🤖 LLMが考え中..."):
+                    import requests
+                    url = "https://api.groq.com/openai/v1/chat/completions"
+                    headers = {
+                        "Authorization": f"Bearer {st.secrets['groq_api_key']}",
+                        "Content-Type": "application/json"
+                    }
+
+                    # プロンプトを組み立て
+                    prompt = "以下のバグリストの中で、あなたのバグリスト「{}」に最も意味が近いものを選んでください。\n\n".format(input_text)
+                    for idx, row in similar_args.iterrows():
+                        prompt += f"- ({row['comment-id']}) {row['argument']}\n"
+
+                    prompt += "\n最も近いものの (番号) を教えてください。"
+
+                    system_message = {
+                        "role": "system",
+                        "content": "あなたは与えられたリストから、最も意味が近いものを選ぶAIアシスタントです。"
+                    }
+
+                    response = requests.post(url, headers=headers, json={
+                        "model": "llama3-70b-8192",
+                        "messages": [
+                            system_message,
+                            {"role": "user", "content": prompt}
+                        ],
+                        "temperature": 0.0
+                    })
+
+                    if response.status_code == 200:
+                        res_json = response.json()
+                        answer = res_json["choices"][0]["message"]["content"].strip()
+                        st.success(f"🤖 LLMの回答: {answer}")
+                    else:
+                        st.error("❌ LLMリクエストに失敗しました。")
 
 # --- 設定タブ ---
 with tab_settings:
