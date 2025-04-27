@@ -266,18 +266,36 @@ with tab_list:
             with st.spinner("🔍 類似バグリストを検索中..."):
                 from sklearn.metrics.pairwise import cosine_similarity
                 from sentence_transformers import SentenceTransformer
+                from openai import OpenAI
 
-                # モデル読み込み
-                # model = SentenceTransformer("cl-nagoya/sup-simcse-ja-large") # MecabがなくてError
-                model = SentenceTransformer("intfloat/multilingual-e5-small") # Mecab不要
+                # モデル選択UI
+                model_choice = st.selectbox("🔍 使用するベクトル化モデルを選択", [
+                    "OpenAI API (text-embedding-3-small)",
+                    "SentenceTransformer (multilingual-e5-small)",
+                    "SentenceTransformer (sup-simcse-ja-large)",
+                ])
 
-                # 入力文をベクトル化
-                input_vec = model.encode([input_text])
+                if model_choice == "OpenAI API (text-embedding-3-small)":
+                    client = OpenAI(api_key=st.secrets["openai_api_key"])
+                    response = client.embeddings.create(
+                        model="text-embedding-3-small",
+                        input=[input_text]
+                    )
+                    # OpenAI returns a list of embeddings
+                    input_vec = np.array([record.embedding for record in response.data])
+                elif model_choice == "SentenceTransformer (multilingual-e5-small)":
+                    model = SentenceTransformer("intfloat/multilingual-e5-small")
+                    input_vec = model.encode([input_text])
+                elif model_choice == "SentenceTransformer (sup-simcse-ja-large)":
+                    model = SentenceTransformer("cl-nagoya/sup-simcse-ja-large")
+                    input_vec = model.encode([input_text])
+                else:
+                    st.error("❌ モデル選択エラー")
+                    st.stop()
 
                 # 既存ベクトル読み込み
                 df_embed = pd.read_pickle(os.path.join(WORKING_DIR, "embeddings.pkl"))
-                #embeddings = np.vstack(df_embed["embedding"].values)
-                embeddings = np.array(list(df_embed["embedding"].values))
+                embeddings = np.vstack(df_embed["embedding"].values)
 
                 # コサイン類似度計算
                 similarities = cosine_similarity(input_vec, embeddings)[0]
