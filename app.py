@@ -276,7 +276,8 @@ with tab_list:
 
                 # 既存ベクトル読み込み
                 df_embed = pd.read_pickle(os.path.join(WORKING_DIR, "embeddings.pkl"))
-                embeddings = np.vstack(df_embed["embedding"].values)
+                #embeddings = np.vstack(df_embed["embedding"].values)
+                embeddings = np.array(list(df_embed["embedding"].values))
 
                 # コサイン類似度計算
                 similarities = cosine_similarity(input_vec, embeddings)[0]
