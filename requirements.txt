@@ -13,3 +13,4 @@ sentence-transformers
 scikit-learn
 streamlit
 umap-learn
+openai
