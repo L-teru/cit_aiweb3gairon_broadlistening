@@ -150,12 +150,21 @@ df_clusters = df_clusters.merge(df_args[["arg-id", "argument"]], on="arg-id", ho
 # --- サマリタブ ---
 with tab_summary:
     st.header("📊 クラスタリング結果")
+    # 最大表示件数
+    MAX_POINTS = 1000  # 最大表示件数
+
+    # 必要ならサンプリング
+    if len(df_clusters) > MAX_POINTS:
+        df_plot = df_clusters.sample(MAX_POINTS, random_state=42)
+    else:
+        df_plot = df_clusters
+
     # グラフ作成
     fig = px.scatter(
-        df_clusters,
+        df_plot,
         x="x",
         y="y",
-        color=df_clusters["cluster-id"].astype(str),  # クラスタIDを文字列に変換
+        color=df_plot["cluster-id"].astype(str),  # クラスタIDを文字列に変換
         color_discrete_map=cluster_color_map,  # カラーマップも文字列キー
         hover_data=["argument", "label"],
         title="クラスタリング結果（マウスオーバーで詳細表示）"
